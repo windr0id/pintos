@@ -1,4 +1,4 @@
-# -*- makefile -*-
+﻿# -*- makefile -*-
 
 include $(patsubst %,$(SRCDIR)/%/Make.tests,$(TEST_SUBDIRS))
 

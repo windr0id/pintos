@@ -117,6 +117,27 @@ thread_start (void)
   sema_down (&idle_started);
 }
 
+/*
+ * DEC a thread's block ticks
+ * and awake thread if block ticks over.
+ * This function must be called with interrupts off.
+ */
+void thread_dec_ticks(struct thread *t){
+	if(t->status == THREAD_BLOCKED){
+		if(t->blockticks == 1){
+			/* It's time to unblock.
+			 * 0 means the thread no set block ticks.
+			 * So here use 1 to judge.
+			 */
+			thread_unblock(t);
+		}
+		/*
+		 * Any case the block ticks must be DEC;
+		 */
+		t->blockticks--;
+	}
+}
+
 /* Called by the timer interrupt handler at each timer tick.
    Thus, this function runs in an external interrupt context. */
 void
@@ -137,6 +158,14 @@ thread_tick (void)
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
     intr_yield_on_return ();
+
+  /* Find if a thread need to be awake from block
+   * by block ticks over.
+   */
+  enum intr_level old_level = intr_disable ();
+  thread_foreach(thread_dec_ticks, NULL);
+  intr_set_level (old_level);
+
 }
 
 /* Prints thread statistics. */
@@ -383,7 +412,7 @@ thread_get_recent_cpu (void)
   /* Not yet implemented. */
   return 0;
 }
-
+
 /* Idle thread.  Executes when no other thread is ready to run.
 
    The idle thread is initially put on the ready list by
@@ -432,7 +461,7 @@ kernel_thread (thread_func *function, void *aux)
   function (aux);       /* Execute the thread function. */
   thread_exit ();       /* If function() returns, kill the thread. */
 }
-
+
 /* Returns the running thread. */
 struct thread *
 running_thread (void) 
@@ -581,7 +610,7 @@ allocate_tid (void)
 
   return tid;
 }
-
+
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
