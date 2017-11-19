@@ -122,7 +122,7 @@ thread_start (void)
  * and awake thread if block ticks over.
  * This function must be called with interrupts off.
  */
-void thread_dec_ticks(struct thread *t){
+void thread_dec_ticks(struct thread *t, void *aux){
 	if(t->status == THREAD_BLOCKED){
 		if(t->blockticks == 1){
 			/* It's time to unblock.
@@ -233,10 +233,18 @@ thread_create (const char *name, int priority,
   sf->eip = switch_entry;
   sf->ebp = 0;
 
-  intr_set_level (old_level);
-
   /* Add to run queue. */
   thread_unblock (t);
+
+  /* If the new thread have a greater priority,
+   * we should add current thread to ready list and schedule.*/
+  struct thread * cur_t = thread_current();
+  if(priority > cur_t->priority){
+	  thread_yield();
+	  //todo
+  }
+
+  intr_set_level (old_level);
 
   return tid;
 }
@@ -257,6 +265,14 @@ thread_block (void)
   schedule ();
 }
 
+/* Compare struct thread by priority.
+ * The bigger number means the bigger priority,
+ * so use '>' to make the bigger priority in the front of list.*/
+bool
+priority_less(const struct list_elem *e1,const struct list_elem *e2, void *aux){
+	return list_entry(e1, struct thread, elem)->priority > list_entry(e2, struct thread, elem)->priority;
+}
+
 /* Transitions a blocked thread T to the ready-to-run state.
    This is an error if T is not blocked.  (Use thread_yield() to
    make the running thread ready.)
@@ -274,8 +290,15 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_push_back (&ready_list, &t->elem);
+
+  list_insert_ordered(&ready_list, &t->elem, priority_less, NULL);
   t->status = THREAD_READY;
+
+  /* If the unblocked thread have a greater priority,
+   * we should add current thread to ready list and schedule.*/
+  //todo
+  //thread_yield();
+
   intr_set_level (old_level);
 }
 
@@ -344,10 +367,17 @@ thread_yield (void)
   ASSERT (!intr_context ());
 
   old_level = intr_disable ();
-  if (cur != idle_thread) 
-    list_push_back (&ready_list, &cur->elem);
-  cur->status = THREAD_READY;
-  schedule ();
+  if (cur != idle_thread){
+	  /* If the next ready thread priority is lower than current, just do nothing.*/
+	  if(!list_empty(&ready_list)){
+		  int next_thread_priority = list_entry (list_front(&ready_list), struct thread, elem)->priority;
+		  if(next_thread_priority >= cur->priority){
+			  list_insert_ordered(&ready_list, &cur->elem, priority_less, NULL);
+			  cur->status = THREAD_READY;
+			  schedule ();
+		  }
+	  }
+  }
   intr_set_level (old_level);
 }
 
@@ -372,7 +402,11 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
-  thread_current ()->priority = new_priority;
+	enum intr_level old_level = intr_disable ();
+	thread_current ()->priority = new_priority;
+	//todo
+	thread_yield();
+	intr_set_level (old_level);
 }
 
 /* Returns the current thread's priority. */
@@ -498,6 +532,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
   t->magic = THREAD_MAGIC;
+  t->blockticks = 0;
   list_push_back (&all_list, &t->allelem);
 }
 
