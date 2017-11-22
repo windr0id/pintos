@@ -1,6 +1,5 @@
 # pintos
  
-- List:
  - pass alarm-single
  - pass alarm-multiple
  - pass alarm-simultaneous
