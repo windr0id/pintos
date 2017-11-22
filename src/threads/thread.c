@@ -37,6 +37,9 @@ static struct thread *initial_thread;
 /* Lock used by allocate_tid(). */
 static struct lock tid_lock;
 
+/* The average number of threads ready to run over the past minute.*/
+static fp_t load_avg = 0;
+
 /* Stack frame for kernel_thread(). */
 struct kernel_thread_frame 
   {
@@ -122,7 +125,7 @@ thread_start (void)
  * and awake thread if block ticks over.
  * This function must be called with interrupts off.
  */
-void thread_dec_ticks(struct thread *t, void *aux){
+void thread_dec_blockticks(struct thread *t, void *aux){
 	if(t->status == THREAD_BLOCKED){
 		if(t->blockticks == 1){
 			/* It's time to unblock.
@@ -138,6 +141,39 @@ void thread_dec_ticks(struct thread *t, void *aux){
 	}
 }
 
+/*
+ * Calculate threads priority by multi-level feedback queue scheduler.
+ */
+void thread_update_priority(struct thread *t, void *aux){
+	if(t == idle_thread) return;
+	fp_t recent_cpu = t->recent_cpu;
+	int nice = t->nice;
+	//int priority = PRI_MAX - (recent_cpu/4) - (nice*2);
+	int priority = FD_CONV_X_ROUND(FD_SUB(FD_CONV_N(PRI_MAX), FD_ADD_N(FD_DIV_N(recent_cpu, 4), (nice*2))));
+	if(priority > PRI_MAX) priority = PRI_MAX;
+	if(priority < PRI_MIN) priority = PRI_MIN;
+	t->priority = priority;
+}
+/*
+ * Calculate threads recent_cpu.
+ */
+void thread_update_recent_cpu(struct thread *t, void *aux){
+	if(t == idle_thread) return;
+	fp_t recent_cpu = t->recent_cpu;
+	int nice = t->nice;
+	//t->recent_cpu = (2*load_avg)/(2*load_avg+1)*recent_cpu + nice;
+	t->recent_cpu = FD_ADD_N(FD_MUL(FD_DIV(FD_MUL_N(load_avg, 2), FD_ADD_N(FD_MUL_N(load_avg, 2), 1)), recent_cpu), nice);
+	/*
+	fp_t temp1 = FD_MUL_N(load_avg, 2);
+	fp_t temp2 = FD_ADD_N(FD_MUL_N(load_avg, 2), 1);
+	fp_t temp3 = FD_DIV(temp1, temp2);
+	msg("--------");
+	msg("t1: %d",FD_CONV_X_ROUND(FD_MUL_N(temp1, 100)));
+	msg("t2: %d",FD_CONV_X_ROUND(FD_MUL_N(temp2, 100)));
+	msg("t3: %d",FD_CONV_X_ROUND(FD_MUL_N(temp3, 100)));
+	*/
+	//thread_update_priority(t, NULL);
+}
 /* Called by the timer interrupt handler at each timer tick.
    Thus, this function runs in an external interrupt context. */
 void
@@ -159,11 +195,37 @@ thread_tick (void)
   if (++thread_ticks >= TIME_SLICE)
     intr_yield_on_return ();
 
+  /* Inc per ticks.*/
+  if(t != idle_thread){
+	  t->recent_cpu = FD_ADD_N(t->recent_cpu, 1);
+	  //msg("%d %d",t, FD_CONV_X_ROUND(t->recent_cpu));
+  }
+  int ticks = timer_ticks();
+  /* Calculate the load_avg and recent_cpu per second.*/
+  if(thread_mlfqs && ticks % 100 == 0){
+	size_t ready_threads = 0; /* The number of threads that are either running or ready. */
+	ready_threads += list_size(&ready_list);
+	if(t != idle_thread)
+	  ready_threads++;
+	load_avg = FD_DIV_N(FD_ADD_N(FD_MUL_N(load_avg, 59),ready_threads), 60);
+
+	enum intr_level old_level = intr_disable ();
+	thread_foreach(thread_update_recent_cpu, NULL);
+	intr_set_level (old_level);
+  }
+
+  /* Calculate priority per fourth tick.*/
+  if(thread_mlfqs && ticks % 4 == 0){
+	enum intr_level old_level = intr_disable ();
+	thread_foreach(thread_update_priority, NULL);
+	intr_set_level (old_level);
+  }
+
   /* Find if a thread need to be awake from block
    * by block ticks over.
    */
   enum intr_level old_level = intr_disable ();
-  thread_foreach(thread_dec_ticks, NULL);
+  thread_foreach(thread_dec_blockticks, NULL);
   intr_set_level (old_level);
 
 }
@@ -420,31 +482,32 @@ thread_get_priority (void)
 void
 thread_set_nice (int nice UNUSED) 
 {
-  /* Not yet implemented. */
+	enum intr_level old_level = intr_disable ();
+	thread_current ()->nice = nice;
+	thread_update_priority(thread_current(), NULL);
+	thread_yield();
+	intr_set_level (old_level);
 }
 
 /* Returns the current thread's nice value. */
 int
 thread_get_nice (void) 
 {
-  /* Not yet implemented. */
-  return 0;
+  return thread_current ()->nice;
 }
 
 /* Returns 100 times the system load average. */
 int
 thread_get_load_avg (void) 
 {
-  /* Not yet implemented. */
-  return 0;
+  return FD_CONV_X_ROUND(FD_MUL_N(load_avg, 100));
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
 int
 thread_get_recent_cpu (void) 
 {
-  /* Not yet implemented. */
-  return 0;
+  return FD_CONV_X_ROUND(FD_MUL_N(thread_current()->recent_cpu, 100));
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
@@ -533,6 +596,8 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->magic = THREAD_MAGIC;
   t->blockticks = 0;
+  t->recent_cpu = 0;
+  t->nice = 0;
   list_push_back (&all_list, &t->allelem);
 }
 
