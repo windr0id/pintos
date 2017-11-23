@@ -15,8 +15,8 @@
  - FAIL priority-donate-lower
  - pass priority-fifo
  - pass priority-preempt
- - FAIL priority-sema
- - FAIL priority-condvar
+ - pass priority-sema
+ - pass priority-condvar
  - FAIL priority-donate-chain
  - pass mlfqs-load-1
  - pass mlfqs-load-60
@@ -26,7 +26,7 @@
  - pass mlfqs-fair-20
  - pass mlfqs-nice-2
  - pass mlfqs-nice-10
- - FAIL mlfqs-block
+ - pass mlfqs-block
 
 
 ----------
