@@ -158,7 +158,7 @@ sema_test_helper (void *sema_)
       sema_up (&sema[1]);
     }
 }
-
+
 /* Initializes LOCK.  A lock can be held by at most a single
    thread at any given time.  Our locks are not "recursive", that
    is, it is an error for the thread currently holding a lock to
@@ -247,12 +247,13 @@ lock_held_by_current_thread (const struct lock *lock)
 
   return lock->holder == thread_current ();
 }
-
+
 /* One semaphore in a list. */
 struct semaphore_elem 
   {
     struct list_elem elem;              /* List element. */
     struct semaphore semaphore;         /* This semaphore. */
+    struct thread *owner;				/* Owner of this semaphore.*/
   };
 
 /* Initializes condition variable COND.  A condition variable
@@ -266,6 +267,14 @@ cond_init (struct condition *cond)
   list_init (&cond->waiters);
 }
 
+/*
+ * Compare the cond->waiters list element semaphore_elem's owner thread priority.
+ * See as thread/priority_less()
+ * */
+bool
+priority_less_cond(const struct list_elem *e1,const struct list_elem *e2, void *aux){
+	return list_entry(e1, struct semaphore_elem, elem)->owner->priority > list_entry(e2, struct semaphore_elem, elem)->owner->priority;
+}
 /* Atomically releases LOCK and waits for COND to be signaled by
    some other piece of code.  After COND is signaled, LOCK is
    reacquired before returning.  LOCK must be held before calling
@@ -296,8 +305,11 @@ cond_wait (struct condition *cond, struct lock *lock)
   ASSERT (!intr_context ());
   ASSERT (lock_held_by_current_thread (lock));
   
+  waiter.owner = thread_current();
+
   sema_init (&waiter.semaphore, 0);
-  list_push_back (&cond->waiters, &waiter.elem);
+  //list_push_back (&cond->waiters, &waiter.elem);
+  list_insert_ordered(&cond->waiters, &waiter.elem, priority_less_cond, NULL);
   lock_release (lock);
   sema_down (&waiter.semaphore);
   lock_acquire (lock);
