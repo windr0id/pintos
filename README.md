@@ -1,6 +1,6 @@
 # pintos
  
-##threads
+## threads
  - pass alarm-single
  - pass alarm-multiple
  - pass alarm-simultaneous
@@ -29,7 +29,7 @@
  - pass mlfqs-nice-10
  - pass mlfqs-block
 
-####All 27 tests passed.
+#### All 27 tests passed.
 
 ----------
 
