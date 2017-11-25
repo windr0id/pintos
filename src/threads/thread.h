@@ -93,6 +93,10 @@ struct thread
     long long blockticks;				/* Ticks to be block.*/
     fp_t recent_cpu;					/* Inc per ticks and recalculate per second.*/
     int nice;							/* Between -20 to 20.*/
+    int base_priority;                  /* Base priority. */
+    struct list lock_list;				/* Acquired locks.*/
+    struct thread *donate_to;			/* Donate priority to this thread.*/
+
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 

@@ -303,7 +303,6 @@ thread_create (const char *name, int priority,
   struct thread * cur_t = thread_current();
   if(priority > cur_t->priority){
 	  thread_yield();
-	  //todo
   }
 
   intr_set_level (old_level);
@@ -355,11 +354,6 @@ thread_unblock (struct thread *t)
 
   list_insert_ordered(&ready_list, &t->elem, priority_less, NULL);
   t->status = THREAD_READY;
-
-  /* If the unblocked thread have a greater priority,
-   * we should add current thread to ready list and schedule.*/
-  //todo
-  //thread_yield();
 
   intr_set_level (old_level);
 }
@@ -465,8 +459,15 @@ void
 thread_set_priority (int new_priority) 
 {
 	enum intr_level old_level = intr_disable ();
-	thread_current ()->priority = new_priority;
-	//todo
+	struct thread *t = thread_current();
+	if(t->priority == t->base_priority){
+		/* Not been donated.*/
+		t->priority = new_priority;
+	}else if(new_priority > t->priority){
+		t->priority = new_priority;
+	}
+	t->base_priority = new_priority;
+
 	thread_yield();
 	intr_set_level (old_level);
 }
@@ -598,6 +599,9 @@ init_thread (struct thread *t, const char *name, int priority)
   t->blockticks = 0;
   t->recent_cpu = 0;
   t->nice = 0;
+  t->base_priority = priority;
+  list_init(&t->lock_list);
+  t->donate_to = NULL;
   list_push_back (&all_list, &t->allelem);
 }
 
