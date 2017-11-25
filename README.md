@@ -1,5 +1,6 @@
 # pintos
  
+##threads
  - pass alarm-single
  - pass alarm-multiple
  - pass alarm-simultaneous
@@ -7,17 +8,17 @@
  - pass alarm-zero
  - pass alarm-negative
  - pass priority-change
- - FAIL priority-donate-one
- - FAIL priority-donate-multiple
- - FAIL priority-donate-multiple2
- - FAIL priority-donate-nest
- - FAIL priority-donate-sema
- - FAIL priority-donate-lower
+ - pass priority-donate-one
+ - pass priority-donate-multiple
+ - pass priority-donate-multiple2
+ - pass priority-donate-nest
+ - pass priority-donate-sema
+ - pass priority-donate-lower
  - pass priority-fifo
  - pass priority-preempt
  - pass priority-sema
  - pass priority-condvar
- - FAIL priority-donate-chain
+ - pass priority-donate-chain
  - pass mlfqs-load-1
  - pass mlfqs-load-60
  - pass mlfqs-load-avg
@@ -28,6 +29,7 @@
  - pass mlfqs-nice-10
  - pass mlfqs-block
 
+####All 27 tests passed.
 
 ----------
 
